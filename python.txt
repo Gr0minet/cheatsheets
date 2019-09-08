@@ -1,0 +1,12 @@
+## Regex
+
+>>> import re
+>>> pattern = "'(.*?)': '(.*?)'"
+>>> s = "  test  'toto': 'tata'  test2  "
+>>> re.search(pattern, s).groups()
+('toto', 'tata')
+
+()  -> match a group
+.   -> match any char
+*   -> match 0 or + of last char
+?   -> non greedy

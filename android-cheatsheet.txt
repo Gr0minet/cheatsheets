@@ -1,0 +1,78 @@
+
+      --- APK files ---
+
+  - list installed packages
+    $ adb shell pm list packages
+
+  - retrieve package path
+    $ adb shell pm path [package-name]
+
+  - pull package from device
+    $ adb pull [package-name]
+
+  - cli to get apk
+    $ gplaycli
+
+
+      --- STATIC ANALYSIS ---
+
+  - decompile apk
+    $ apktool d [package-name] -o [out-name]
+
+  - recompile apk (in folder)
+    $ apktool b 
+
+  - sign application with debug key
+    $ jarsigner -verbose -keystore ~/.android/debug.keystore \
+      -storepass android [apk-name] androiddebugkey
+
+  - gui with apk decompilation
+    $ jadx-gui [package-name]
+
+      --- DYNAMIC ANALYSIS ---
+
+  - cli to dump logs
+    $ adb logcat
+
+  - HOW TO USE jdwp
+    - get app pid
+      $ adb shell ps 
+    - forward debugger
+      $ adb forward tcp:[remote-port] jdwp:[app-pid]
+    - attach with jdb
+      $ jdb -attach localhost:[remote-port]
+
+  - FRIDA - You need to launch frida-server on the device
+    - get the list of running processes
+      $ frida-ps -U
+    
+    - trace a specific low-level library call
+      $ frida-trace -i "open" -U com.android.chrome
+
+    - frida CLI
+      $ frida -U com.android.chrome
+
+    - scripting
+      $ frida -U -l myscript.js com.android.chrome
+  
+      --- DATA STORAGE ---
+  - Shared Preferences
+    /data/data/[package-name]/shared_prefs
+
+  - Databases
+    /data/data/[package-name]/databases
+
+  - Internal
+    /data/data/[package-name]/files
+
+  - External
+    /sdcard
+
+      --- MISC ---
+
+  - System apps
+    /system/app or /system/private-app
+
+  - User apps
+    /data/app/[package-name]
+  

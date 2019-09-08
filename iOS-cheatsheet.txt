@@ -1,0 +1,23 @@
+      --- IPA files ---
+
+  - list installed packages
+    $ ipainstaller -l
+
+  - show info about a package
+    $ ipainstaller -i [package-name]
+
+  - static installer files are in the Application directory
+  - all user data is in the Data directory
+
+      --- DYNAMIC ANALYSIS ---
+
+
+    - FRIDA -
+
+  - get the list of running processes
+    $ frida-ps -U
+
+    - MONITORING CONSOLE LOGS -
+
+  - with cydia impactor: device -> watch logs
+
