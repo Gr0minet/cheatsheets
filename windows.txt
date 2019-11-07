@@ -1,0 +1,46 @@
+                ------------------------------
+                ----- WINDOWS CHEATSHEET -----
+                ------------------------------
+***********
+** SHELL **
+***********
+
+    $ hostname // gives hostname
+
+    $ systeminfo // gives system info
+
+    We can pipe and grep like linux:
+    $ systeminfo | findstr /B /C:"OS Name" /C:"OS Version"
+
+    $ help {command} // is like man {command} on linux
+
+    $ net users // gives list of users on the system
+
+    $ set // gives environment variables
+
+    $ ipconfig /all // gives network interfaces
+
+    $ route print // print routing table
+
+    $ arp -A // arp table
+
+    $ netstat -ano // active network connections
+
+    $ schtasks /query /fo LIST /v // like crontab
+    
+    $ tasklist /SVC // list running processes that started services
+
+    $ DRIVERQUERY // list drivers
+
+    $ wmic // for admin use
+
+                -------------------------------
+
+************
+** UPLOAD **
+************
+
+
+
+                -------------------------------
+
