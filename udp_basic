@@ -1,0 +1,10 @@
+# Nmap 7.80 scan initiated Sat Feb 15 16:19:30 2020 as: nmap -sU -oN udp_basic cronos
+Nmap scan report for cronos (10.10.10.13)
+Host is up (0.63s latency).
+Not shown: 997 open|filtered ports
+PORT   STATE  SERVICE
+22/udp closed ssh
+53/udp open   domain
+80/udp closed http
+
+# Nmap done at Sat Feb 15 16:22:54 2020 -- 1 IP address (1 host up) scanned in 203.66 seconds
