@@ -1,0 +1,38 @@
+                ------------------------------
+                ------ LINUX CHEATSHEET ------
+                ------------------------------
+***********
+** SHELL **
+***********
+
+    $ ip link set {iface} up/down // set iface up/down
+
+    $ iw dev {iface} set freq {freq} // set frequence for iface (wifi)
+
+    $ iw dev {iface} set monitor none // set iface on monitor mode
+
+    $ iw dev {iface} set type managed // set iface on managed mode
+
+*************
+** SSL/TLS **
+*************
+
+    Check the sha256 fingerprint of a PEM encoded (b64) cert file
+    $ openssl x509 -noout -fingerprint -sha256 -inform pem -in certificate.crt 
+
+********************
+** Administration **
+********************
+ 
+    netstat -lputen
+
+*********
+** GDB **
+*********
+
+    Launch gdbserver with a LD_PRELOAD
+    $ gdbserver --wrapper env 'LD_PRELOAD=./libefence.so' -- :1234 ./test-program
+
+    $ info proc mappings
+
+    $ set logging on/off

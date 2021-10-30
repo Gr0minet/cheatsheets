@@ -170,6 +170,20 @@
     for instance:
     <iframe src="https://your-lab-id.web-security-academy.net/?search=%22%3E%3Cbody%20onresize=alert(document.cookie)%3E" onload=this.style.width='100px'>
 
+## Authentication
+
+  ## Tips to bypass IP-based brute force protection
+    * X-Forwarded-For: [Random IP]
+    -> Act as if you were a proxy for other clients
+
+    * Sometimes logging to a real account reset the IP ban 
+
+  ## Look for timing based information leak
+    -> Set a long password and bruteforce usernames
+
+  ## Look for weak structures in "stay-logged-in" cookies
+    -> For instance b64(username:md5(password))
+
 ## Node dependencies
 
 npm audit -> list of advisories for outdated dependencies
