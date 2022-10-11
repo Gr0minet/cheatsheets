@@ -13,6 +13,8 @@
 
     $ iw dev {iface} set type managed // set iface on managed mode
 
+    $ ip link set dev {iface} address {mac} // change mac address
+
 *************
 ** SSL/TLS **
 *************
@@ -26,6 +28,9 @@
  
     netstat -lputen
 
+    ip addr add/del 10.10.10.10/24 dev enp0s31f6
+    ip route add default via 10.10.10.254
+
 *********
 ** GDB **
 *********
@@ -36,3 +41,16 @@
     $ info proc mappings
 
     $ set logging on/off
+
+
+**********
+** VLAN **
+**********
+
+    $ ip link add link eth0 name eth0.100 type vlan id 100 // set a new vlan iface
+
+    $ ip link delete eth0.100
+
+    $ ip -d link show eth0.100 // see vlan id on iface
+
+    $ dhclient enp0s31f6.voip
