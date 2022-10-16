@@ -1,0 +1,9 @@
+                -----------------------------------
+                ------ CODE AUDIT CHEATSHEET ------
+                -----------------------------------
+************
+** SEARCH **
+************
+
+    $ grep -il apples $(grep -iRl mangoes /tmp/*) // Retrieve files that contain both "apples" and "mangoes" in /tmp/*
+

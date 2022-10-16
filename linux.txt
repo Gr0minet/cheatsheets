@@ -36,3 +36,15 @@
     $ info proc mappings
 
     $ set logging on/off
+
+******************************
+** CHANGE PACKAGE DEPENDECY **
+******************************
+
+    $ dpkg -x package.deb tmpdir
+
+    $ dpkg --control package.deb
+
+    $ vim DEBIAN/control // change old package by new one
+
+    $ mv DEBIAN tmpdir/ && dpkg -b tmpdir new_package.deb
