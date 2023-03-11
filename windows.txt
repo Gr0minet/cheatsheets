@@ -95,6 +95,7 @@
         MIMIKATZ
 
     LSASS
+        privilege::debug // check if privilege is good enough
         sekurlsa::logonPasswords full
 
         ZEROLOGON (check with MIMIKATZ)
@@ -119,3 +120,15 @@
 
     If a hash contains the string 0XAAD3B435B51404EE, it is most likely a
     LM hash, and it means the password that produced the hash is 7 chars or less
+
+********************
+** SAM SYSTEM etc **
+********************
+
+    SAM registry base
+        contains local accounts hashes
+    SYSTEM registry base
+        contains a key to decrypt SAM registry base
+    SECURITY registry base
+        contains LSA secrets (?)
+        contains domain accounts in cache, but their hash is hard to crack because the hash function is long to compute

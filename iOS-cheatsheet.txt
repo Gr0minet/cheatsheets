@@ -21,3 +21,5 @@
 
   - with cydia impactor: device -> watch logs
 
+  - or ./Impactor idevicesyslog -u [device_id]
+

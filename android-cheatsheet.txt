@@ -13,18 +13,45 @@
   - cli to get apk
     $ gplaycli
 
+  - install multiples apk (sometimes multiples are needed)
+    $ adb install-multiple app.apk split_config.x86.apk split_config.xxhdpi.apk
+
 
       --- STATIC ANALYSIS ---
 
   - decompile apk
     $ apktool d [package-name] -o [out-name]
+   
+  - // patch smali or whatever
 
   - recompile apk (in folder)
     $ apktool b 
 
+  - create signing key if not already done 
+    $ keytool -genkey -v -keystore {my-release-key}.keystore -alias {alias_name} -keyalg RSA -keysize 2048 -validity 10000
+
   - sign application with debug key
-    $ jarsigner -verbose -keystore ~/.android/debug.keystore \
-      -storepass android [apk-name] androiddebugkey
+    $ jarsigner -verbose -keystore {my-release-key}.keystore \
+      -storepass android [apk-name] {alias_name}
+
+  - If adb install fails with INSTALL_FAILED_VERIFICATION_FAILURE
+    (https://stackoverflow.com/questions/15014519/apk-installation-failed-install-failed-verification-failure)
+  
+    """
+    You need to disable verification of the APK during ADB install. If the setting in Security is greyed out or isn't working as it should try shelling into the device and, depending on which settings database the setting is in per your API level (Global, System, Secure) run
+
+    $ adb shell settings put global verifier_verify_adb_installs 0
+
+    If you can actually set it, it will prevent checking of APKs over ADB.
+
+    Sometimes you will need to disable the package verifier as well using:
+
+    $ adb shell settings put global package_verifier_enable 0
+
+    On KitKat, you can see here that these settings are in the Global database:
+
+    http://androidxref.com/4.4.2_r2/xref/frameworks/base/core/java/android/provider/Settings.java#5015
+    """
 
   - gui with apk decompilation
     $ jadx-gui [package-name]

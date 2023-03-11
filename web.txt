@@ -279,6 +279,10 @@
 
   - blind SSRF -> collaborator
 
+  - Several techniques about SSRF : https://docs.google.com/presentation/d/1JdIjHHPsFSgLbaJcHmMkE904jmwPM4xdhEuwhy2ebvo/htmlpresent
+    
+  - read /proc/self/environ to get valuable info
+
 ## XXE
 
   ### Example
